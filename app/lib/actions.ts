@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { signIn } from '@/auth';
 import { AuthError } from 'next-auth';
+import { Log } from './definitions';
 
 const FormSchema = z.object({
   id: z.string(),
@@ -135,5 +136,77 @@ export async function authenticate(
       }
     }
     throw error;
+  }
+}
+
+
+
+export const updateStatus =  async (id: string, status: string) => {
+  try {
+    await sql`
+      UPDATE invoices
+      SET status = ${status}
+      WHERE id = ${id}
+    `;
+
+    revalidatePath('/dashboard/invoices');
+    return { message: 'Updated Invoice' };
+  } catch (error) {
+    return { message: 'Database Error: Failed to Update Invoice.' };
+  }
+}
+
+export const createLog = async ({old_value,new_value,invoice_id,user_email}: {old_value:string,new_value:string,invoice_id:string,user_email?:string| null}) => {
+
+
+  if(!user_email) throw new Error('User email is required');
+
+
+  try {
+      await sql`
+      INSERT INTO logs (old_value,new_value,invoice_id,user_email,name, date_changed)
+      VALUES (${old_value},${new_value},${invoice_id},${user_email}, 'status', ${new Date().toISOString()})
+    `;
+
+    return { message: 'Created Log' };
+  } catch (error) {
+    console.log("err",error)
+    return { message: 'Database Error: Failed to Create Log.' };
+  }
+}
+
+export const rollbackStatus = async ({old_value,new_value,invoice_id,user_email}: {old_value:string,new_value:string,invoice_id:string,user_email?:string| null}) => {
+
+  if(!user_email) throw new Error('User email is required');
+
+  createLog({old_value,new_value,invoice_id,user_email});
+
+  revalidatePath(`/dashboard/invoices/${invoice_id}/edit`);
+
+}
+
+
+export const getLogsByInvoiceId = async (id: string) => {
+
+  try {
+    const data = await sql<Log>`
+      SELECT
+        id,
+        old_value,
+        new_value,
+        invoice_id,
+        user_email,
+        name,
+        date_changed
+      FROM logs
+      WHERE invoice_id = ${id}
+      ORDER BY date_changed DESC
+    `;
+
+    const logs = data.rows;
+    return logs;
+  } catch (err) {
+    console.error('Database Error:', err);
+    throw new Error('Failed to fetch all logs.');
   }
 }

@@ -86,3 +86,14 @@ export type InvoiceForm = {
   amount: number;
   status: 'pending' | 'paid';
 };
+
+
+export type Log = {
+  id: string;
+  invoice_id: string;
+  old_value: string;
+  new_value: string;
+  user_email: string;
+  name: string;
+  date_changed: Date
+}
